@@ -64,15 +64,27 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("🟢 1. BULLISH STOCKS")
-    st.dataframe(bull_stock, use_container_width=True) if not bull_stock.empty else st.info("કોઈ સ્ટોક મળ્યો નથી")
+    if not bull_stock.empty:
+        st.dataframe(bull_stock, use_container_width=True)
+    else:
+        st.info("કોઈ સ્ટોક મળ્યો નથી")
 
     st.subheader("📈 3. BULLISH SECTORS")
-    st.dataframe(bull_sec, use_container_width=True) if not bull_sec.empty else st.info("કોઈ સેક્ટર મળ્યું નથી")
+    if not bull_sec.empty:
+        st.dataframe(bull_sec, use_container_width=True)
+    else:
+        st.info("કોઈ સેક્ટર મળ્યું નથી")
 
 with col2:
     st.subheader("🔴 2. BEARISH STOCKS")
-    st.dataframe(bear_stock, use_container_width=True) if not bear_stock.empty else st.info("કોઈ સ્ટોક મળ્યો નથી")
+    if not bear_stock.empty:
+        st.dataframe(bear_stock, use_container_width=True)
+    else:
+        st.info("કોઈ સ્ટોક મળ્યો નથી")
 
     st.subheader("📉 4. BEARISH SECTORS")
-    st.dataframe(bear_sec, use_container_width=True) if not bear_sec.empty else st.info("કોઈ સેક્ટર મળ્યું નથી")
-          
+    if not bear_sec.empty:
+        st.dataframe(bear_sec, use_container_width=True)
+    else:
+        st.info("કોઈ સેક્ટર મળ્યું નથી")
+              

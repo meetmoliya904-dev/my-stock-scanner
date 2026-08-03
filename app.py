@@ -6,7 +6,7 @@ import pandas as pd
 st.set_page_config(layout="wide", page_title="NSE Live Market Insights")
 st.title("📊 Live Market Insights Dashboard (NSE)")
 
-# 1. STOCKS WATCHLIST (તમારી CSV ફાઈલ મુજબ)
+# 1. STOCKS WATCHLIST
 STOCKS = [
     'AUBANK.NS', 'ADANIENT.NS', 'ADANIGREEN.NS', 'ADANIPORTS.NS', 'ADANIPOWER.NS', 'ATGL.NS', 
     'ALKEM.NS', 'AMBUJACEM.NS', 'APOLLOHOSP.NS', 'ASHOKLEY.NS', 'ASIANPAINT.NS', 'AUROPHARMA.NS', 
@@ -26,7 +26,7 @@ STOCKS = [
     'ULTRACEMCO.NS', 'UNIONBANK.NS', 'UNITDSPR.NS', 'VEDL.NS', 'WIPRO.NS', 'ZEEL.NS', 'ZYDUSLIFE.NS'
 ]
 
-# 2. SECTOR WATCHLIST (તમારી CSV ફાઈલ મુજબ)
+# 2. SECTOR WATCHLIST
 SECTORS = {
     'Bank Nifty': '^NSEBANK', 
     'Nifty IT': '^CNXIT', 
@@ -38,71 +38,45 @@ SECTORS = {
     'Nifty Realty': '^CNXREALTY'
 }
 
-# Pivot Points Calculation (R1 & S1)
-def calculate_pivot_points(df):
-    high = df['High'].iloc[-2]
-    low = df['Low'].iloc[-2]
-    close = df['Close'].iloc[-2]
-    pivot = (high + low + close) / 3
-    r1 = (2 * pivot) - low
-    s1 = (2 * pivot) - high
-    return r1, s1
-
 @st.cache_data(ttl=60)
 def scan_stocks():
-    bullish_list, bearish_list = [], []
     all_stocks = []
-    
     for ticker in STOCKS:
         try:
             df = yf.download(ticker, period="5d", interval="15m", progress=False)
-            if len(df) < 26: continue
+            if len(df) < 2: continue
             
+            # Close Price & Daily Change calculation
             ltp = float(df['Close'].iloc[-1])
             prev_close = float(df['Close'].iloc[0])
             pct_change = round(((ltp - prev_close) / prev_close) * 100, 2)
-            
-            prev_15m_high = float(df['High'].iloc[-2])
-            prev_15m_low = float(df['Low'].iloc[-2])
-            prev_25_high = float(df['High'].iloc[-26])
-            prev_25_low = float(df['Low'].iloc[-26])
-            
-            r1, s1 = calculate_pivot_points(df)
             symbol_name = ticker.replace('.NS', '')
             
             all_stocks.append({'Stock': symbol_name, 'LTP': round(ltp, 2), 'Change %': pct_change})
-            
-            # Chartink Strict Rules
-            if (ltp > prev_15m_high) and (ltp > prev_25_high) and (ltp > r1) and (pct_change > 1.0):
-                bullish_list.append({'Stock': symbol_name, 'LTP': round(ltp, 2), 'Change %': pct_change})
-            elif (ltp < prev_15m_low) and (ltp < prev_25_low) and (ltp < s1) and (pct_change < -1.0):
-                bearish_list.append({'Stock': symbol_name, 'LTP': round(ltp, 2), 'Change %': pct_change})
         except: pass
         
-    df_bull = pd.DataFrame(bullish_list)
-    df_bear = pd.DataFrame(bearish_list)
     df_all = pd.DataFrame(all_stocks)
-
-    # Fallback: જો શરતોવાળો કડક ડેટા ન મળે તો % Change મુજબ ટોપ ડેટા બતાવો
-    if df_bull.empty and not df_all.empty:
-        df_bull = df_all[df_all['Change %'] > 0].sort_values(by='Change %', ascending=False)
-    if df_bear.empty and not df_all.empty:
-        df_bear = df_all[df_all['Change %'] < 0].sort_values(by='Change %', ascending=True)
-
-    return df_bull, df_bear
+    if not df_all.empty:
+        # Bullish: Top Change % (> 0) | Bearish: Lowest Change % (< 0)
+        bullish_df = df_all[df_all['Change %'] >= 0].sort_values(by='Change %', ascending=False)
+        bearish_df = df_all[df_all['Change %'] < 0].sort_values(by='Change %', ascending=True)
+        return bullish_df, bearish_df
+    return pd.DataFrame(), pd.DataFrame()
 
 @st.cache_data(ttl=60)
 def scan_sectors():
     bull_sec, bear_sec = [], []
     for sec_name, symbol in SECTORS.items():
         try:
-            df = yf.download(symbol, period="2d", interval="1d", progress=False)
+            df = yf.download(symbol, period="5d", interval="1d", progress=False)
             if len(df) >= 2:
                 ltp = float(df['Close'].iloc[-1])
                 prev = float(df['Close'].iloc[-2])
                 pct = round(((ltp - prev) / prev) * 100, 2)
-                if pct >= 0: bull_sec.append({'Sector': sec_name, 'Change %': pct})
-                else: bear_sec.append({'Sector': sec_name, 'Change %': pct})
+                if pct >= 0: 
+                    bull_sec.append({'Sector': sec_name, 'Change %': pct})
+                else: 
+                    bear_sec.append({'Sector': sec_name, 'Change %': pct})
         except: pass
     return pd.DataFrame(bull_sec), pd.DataFrame(bear_sec)
 
@@ -115,15 +89,26 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("🟢 1. BULLISH STOCKS")
-    st.dataframe(bull_stock.sort_values(by='Change %', ascending=False), use_container_width=True) if not bull_stock.empty else st.info("કોઈ સ્ટોક મળ્યો નથી")
+    if not bull_stock.empty:
+        st.dataframe(bull_stock, use_container_width=True)
+    else:
+        st.info("કોઈ Bullish સ્ટોક મળ્યો નથી")
 
     st.subheader("📈 3. BULLISH SECTORS")
-    st.dataframe(bull_sec.sort_values(by='Change %', ascending=False), use_container_width=True) if not bull_sec.empty else st.info("કોઈ સેક્ટર મળ્યું નથી")
+    if not bull_sec.empty:
+        st.dataframe(bull_sec.sort_values(by='Change %', ascending=False), use_container_width=True)
+    else:
+        st.info("કોઈ Bullish સેક્ટર મળ્યું નથી")
 
 with col2:
     st.subheader("🔴 2. BEARISH STOCKS")
-    st.dataframe(bear_stock.sort_values(by='Change %', ascending=True), use_container_width=True) if not bear_stock.empty else st.info("કોઈ સ્ટોક મળ્યો નથી")
+    if not bear_stock.empty:
+        st.dataframe(bear_stock, use_container_width=True)
+    else:
+        st.info("કોઈ Bearish સ્ટોક મળ્યો નથી")
 
     st.subheader("📉 4. BEARISH SECTORS")
-    st.dataframe(bear_sec.sort_values(by='Change %', ascending=True), use_container_width=True) if not bear_sec.empty else st.info("કોઈ સેક્ટર મળ્યું નથી")
-            
+    if not bear_sec.empty:
+        st.dataframe(bear_sec.sort_values(by='Change %', ascending=True), use_container_width=True)
+    else:
+        st.info("કોઈ Bearish સેક્ટર મળ્યું નથી")

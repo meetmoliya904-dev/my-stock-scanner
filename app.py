@@ -5,22 +5,28 @@ import pandas as pd
 # Page Configuration
 st.set_page_config(layout="wide", page_title="NSE Live Market Insights")
 
-# Header Title
+# Custom CSS for Chartink Style UI
+st.markdown("""
+<style>
+    .stDataFrame { border-radius: 8px; }
+    div[data-testid="stExpander"] { border: 1px solid #333; border-radius: 8px; }
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------------------------------------------
+# 🎯 SIDEBAR PANEL
+# -------------------------------------------------------------
+st.sidebar.title("🔍 Scanner Control Panel")
+st.sidebar.markdown("---")
+
+segment = st.sidebar.selectbox("📌 Segment Filter:", ["CASH (Watchlist)", "SECTORS", "ALL STOCKS"], index=0)
+scan_mode = st.sidebar.selectbox("⚡ Scan Mode:", ["Strict Breakout Rules", "Top Gainers / Losers"], index=0)
+
+st.sidebar.markdown("---")
+st.sidebar.info("💡 **Tip:** બજાર લાઈવ હોય ત્યારે 'Strict Breakout' પસંદ કરો. બંધ કે ઓછી મુવમેન્ટ હોય ત્યારે 'Top Gainers/Losers' જુઓ.")
+
+# Main Title
 st.title("📊 Live Market Insights Dashboard (NSE)")
-
-# -------------------------------------------------------------
-# 🎯 TOOLBAR (લાલ સર્કલ મુજબનું ડ્રોપડાઉન/ફિલ્ટર ટૂલબાર)
-# -------------------------------------------------------------
-st.markdown("---")
-tool_col1, tool_col2, tool_col3 = st.columns([1, 1, 2])
-
-with tool_col1:
-    segment = st.selectbox("📌 Segment Filter:", ["CASH (Watchlist)", "ALL STOCKS"], index=0)
-
-with tool_col2:
-    scan_mode = st.selectbox("⚡ Scan Mode:", ["Strict Breakout Rules", "Top Gainers / Losers"], index=0)
-
-st.markdown("---")
 
 # 1. STOCKS WATCHLIST
 STOCKS = [
@@ -54,7 +60,6 @@ SECTORS = {
     'Nifty Realty': '^CNXREALTY'
 }
 
-# Pivot Points Calculation
 def calculate_pivot_points(df):
     high = df['High'].iloc[-2]
     low = df['Low'].iloc[-2]
@@ -125,30 +130,50 @@ def scan_sectors():
 bull_stock, bear_stock = scan_stocks(scan_mode)
 bull_sec, bear_sec = scan_sectors()
 
-# UI Layout (4 Widgets)
+# UI Layout (4 Widgets with Chartink Atlas Side Options)
 col1, col2 = st.columns(2)
 
+# Helper function to render header with side options
+def render_widget_header(title, df, filename):
+    h_col1, h_col2 = st.columns([3, 1])
+    with h_col1:
+        st.subheader(title)
+    with h_col2:
+        with st.popover("⋮ More Options"):
+            st.markdown("⚙️ **Widget Settings**")
+            if not df.empty:
+                csv = df.to_csv(index=False).encode('utf-8')
+                st.download_button(label="📥 Download CSV", data=csv, file_name=filename, mime='text/csv')
+            else:
+                st.caption("No data to download")
+
+# Left Column (Bullish Widgets)
 with col1:
-    st.subheader("🟢 1. BULLISH STOCKS")
+    render_widget_header("🟢 1. BULLISH STOCKS", bull_stock, "bullish_stocks.csv")
     if not bull_stock.empty:
         st.dataframe(bull_stock.sort_values(by='Change %', ascending=False), use_container_width=True)
     else:
         st.info("કોઈ Bullish સ્ટોક મળ્યો નથી")
 
-    st.subheader("📈 3. BULLISH SECTORS")
+    st.markdown("---")
+
+    render_widget_header("📈 3. BULLISH SECTORS", bull_sec, "bullish_sectors.csv")
     if not bull_sec.empty:
         st.dataframe(bull_sec.sort_values(by='Change %', ascending=False), use_container_width=True)
     else:
         st.info("કોઈ Bullish સેક્ટર મળ્યું નથી")
 
+# Right Column (Bearish Widgets)
 with col2:
-    st.subheader("🔴 2. BEARISH STOCKS")
+    render_widget_header("🔴 2. BEARISH STOCKS", bear_stock, "bearish_stocks.csv")
     if not bear_stock.empty:
         st.dataframe(bear_stock.sort_values(by='Change %', ascending=True), use_container_width=True)
     else:
         st.info("કોઈ Bearish સ્ટોક મળ્યો નથી")
 
-    st.subheader("📉 4. BEARISH SECTORS")
+    st.markdown("---")
+
+    render_widget_header("📉 4. BEARISH SECTORS", bear_sec, "bearish_sectors.csv")
     if not bear_sec.empty:
         st.dataframe(bear_sec.sort_values(by='Change %', ascending=True), use_container_width=True)
     else:

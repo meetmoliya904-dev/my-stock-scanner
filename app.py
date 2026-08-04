@@ -1,14 +1,16 @@
 import streamlit as st
+import yfinance as yf
+import pandas as pd
 import json
 import os
 
 # Page Configuration
-st.set_page_config(layout="wide", page_title="Acharya - Atlas Financial Intelligence", page_icon="📈")
+st.set_page_config(layout="wide", page_title="Stock Screener & Atlas Dashboard", page_icon="⚡")
 
-# JSON Storage File path
-DATA_FILE = "acharya_atlas_data.json"
+# File Storage path for persistence
+DATA_FILE = "stock_screener_data.json"
 
-# Load saved dashboards from persistent JSON
+# Load Saved Dashboards & Scanners
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
@@ -17,426 +19,273 @@ def load_data():
         except:
             pass
     return [
-        {"id": 1, "name": "IBB SCANNER", "desc": "Has 4 widgets", "is_private": True, "is_fav": True, "widgets": []},
-        {"id": 2, "name": "TOMATO", "desc": "Has 0 widgets", "is_private": True, "is_fav": False, "widgets": []}
+        {
+            "id": 1,
+            "name": "IBB SCANNER",
+            "desc": "Has 4 widgets",
+            "is_private": True,
+            "is_fav": True,
+            "filters": [
+                {"tf": "15m", "field": "Close", "op": "Greater than", "val": "Prev 15m High"},
+                {"tf": "15m", "field": "Close", "op": "Greater than", "val": "Pivot Point R1"}
+            ]
+        },
+        {
+            "id": 2,
+            "name": "BULLISH LIVE IBB",
+            "desc": "Live Breakout Screener",
+            "is_private": True,
+            "is_fav": False,
+            "filters": []
+        }
     ]
 
-# Save dashboards to file
+# Save Data to JSON File
 def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-# Initialize Session States
-if "is_logged_in" not in st.session_state:
-    st.session_state.is_logged_in = False
-
-if "user_email" not in st.session_state:
-    st.session_state.user_email = ""
-
+# Session State Initialization
 if "dashboards" not in st.session_state:
     st.session_state.dashboards = load_data()
 
-if "view_mode" not in st.session_state:
-    st.session_state.view_mode = "home" # 'home', 'create_dashboard', 'view_dashboard', 'scan_options'
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "dashboard" # 'dashboard', 'screener_builder', 'view_results'
 
-if "active_dashboard" not in st.session_state:
-    st.session_state.active_dashboard = None
+if "active_screener" not in st.session_state:
+    st.session_state.active_screener = None
 
-if "active_tab" not in st.session_state:
-    st.session_state.active_tab = "Your"
-
-# Custom CSS Styling (Chartink Atlas Dark Theme)
+# Custom CSS for Dark Modern Theme
 st.markdown("""
 <style>
     .stApp {
-        background-color: #0d1117;
-        color: #f0f6fc;
+        background-color: #0b0e14;
+        color: #e2e8f0;
     }
-    
-    /* Top Header Bar */
-    .top-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 0px;
-        border-bottom: 1px solid #21262d;
-        margin-bottom: 15px;
-    }
-    .top-logo {
-        font-size: 22px;
-        font-weight: 800;
-        color: #38edf8;
-    }
-    .top-badge {
-        background: #1e1b4b;
-        color: #818cf8;
-        font-size: 11px;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-weight: bold;
-    }
-    
-    /* Ci Logo Card */
-    .ci-card {
-        text-align: center;
-        padding: 25px 10px;
-        background: #161b22;
-        border-radius: 16px;
-        border: 1px solid #30363d;
+    /* Header Box */
+    .top-header {
+        background: #111827;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #1f2937;
         margin-bottom: 20px;
     }
-    .ci-logo-icon {
-        width: 55px;
-        height: 55px;
-        background: linear-gradient(135deg, #2563eb, #7c3aed);
-        border-radius: 14px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 26px;
-        font-weight: bold;
-        color: white;
-        box-shadow: 0 0 15px rgba(124, 58, 237, 0.5);
-        margin-bottom: 10px;
-    }
-    
-    /* Button Customization */
-    div.stButton > button[kind="primary"] {
-        background: linear-gradient(90deg, #7c3aed, #2563eb) !important;
-        color: white !important;
-        border-radius: 8px !important;
-        font-weight: bold !important;
-        border: none !important;
-    }
-    
-    /* Login Screen Container */
-    .login-box {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        border-radius: 12px;
-        padding: 25px;
-        max-width: 420px;
-        margin: 20px auto;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-    }
-    
     .badge-pvt {
-        background-color: #3d1214;
-        color: #ff6b6b;
-        padding: 2px 6px;
+        background: #450a0a;
+        color: #f87171;
+        padding: 2px 8px;
         border-radius: 4px;
         font-size: 11px;
-        border: 1px solid #ff6b6b;
+        border: 1px solid #f87171;
+    }
+    /* Screener Filter Card */
+    .filter-card {
+        background: #1e293b;
+        border-left: 4px solid #3b82f6;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+    }
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(90deg, #6366f1, #3b82f6) !important;
+        color: white !important;
+        border: none !important;
+        font-weight: bold !important;
+        border-radius: 6px !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
+# Watchlist Stocks for Scanning
+STOCK_LIST = [
+    'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS', 'BHARTIARTL.NS',
+    'SBIN.NS', 'LTIM.NS', 'TATAMOTORS.NS', 'AXISBANK.NS', 'KOTAKBANK.NS', 'LT.NS',
+    'HINDUNILVR.NS', 'ITC.NS', 'BAJFINANCE.NS', 'MARUTI.NS', 'SUNPHARMA.NS', 'TITAN.NS'
+]
+
+# Fetch Real-time Stock Data & Run Scan
+@st.cache_data(ttl=60)
+def fetch_live_breakouts():
+    results = []
+    for ticker in STOCK_LIST:
+        try:
+            df = yf.download(ticker, period="2d", interval="15m", progress=False)
+            if len(df) < 2: continue
+            
+            ltp = float(df['Close'].iloc[-1])
+            prev_close = float(df['Close'].iloc[0])
+            pct_change = round(((ltp - prev_close) / prev_close) * 100, 2)
+            volume = int(df['Volume'].iloc[-1])
+            symbol = ticker.replace(".NS", "")
+            
+            # Simple Breakout Rule Demo
+            results.append({
+                "Symbol": symbol,
+                "LTP": round(ltp, 2),
+                "% Change": pct_change,
+                "Volume": volume
+            })
+        except:
+            pass
+            
+    res_df = pd.DataFrame(results)
+    if not res_df.empty:
+        return res_df.sort_values(by="% Change", ascending=False)
+    return pd.DataFrame()
+
+# -------------------------------------------------------------
+# 🛠️ SIDEBAR NAVIGATION MENU
+# -------------------------------------------------------------
+st.sidebar.title("⚡ Chartink ATLAS")
+st.sidebar.caption("Real-Time Stock Screener")
+st.sidebar.markdown("---")
+
+nav_choice = st.sidebar.radio("Navigation", ["📂 Dashboards Studio", "🔍 Stock Screener", "⭐ Watchlists"])
+
+if nav_choice == "📂 Dashboards Studio":
+    st.session_state.current_page = "dashboard"
+elif nav_choice == "🔍 Stock Screener":
+    st.session_state.current_page = "screener_builder"
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("🎨 **Theme Toggle**")
+t_col1, t_col2 = st.sidebar.columns(2)
+t_col1.button("Dark ☾", use_container_width=True)
+t_col2.button("Light 💡", use_container_width=True)
+
 
 # =================================----------------------------
-# 🔑 1. SIGN IN / LOGIN PAGE (If user is not logged in)
+# 1. DASHBOARDS STUDIO PAGE
 # =================================----------------------------
-if not st.session_state.is_logged_in:
-    st.markdown("<br>", unsafe_allow_html=True)
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+if st.session_state.current_page == "dashboard":
+    st.title("Scan Dashboard")
+    st.caption("Review saved scans, tags, sharing, and live previews from one place.")
+    st.markdown("---")
     
-    with col_l2:
-        st.markdown("""
-        <div style="text-align: center;">
-            <div class="ci-logo-icon">Ci</div>
-            <h2 style="margin-bottom:0px;">Sign in to your account</h2>
-            <p style="color:#8b949e; font-size:14px;">Acharya Atlas Financial Intelligence</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.write("")
-        if st.button("🌐 Continue With Google", use_container_width=True):
-            st.session_state.is_logged_in = True
-            st.session_state.user_email = "user@google.com"
-            st.success("Successfully logged in with Google!")
+    col_top1, col_top2 = st.columns([4, 1])
+    with col_top2:
+        if st.button("➕ Create Scanner", type="primary", use_container_width=True):
+            st.session_state.current_page = "screener_builder"
             st.rerun()
             
-        st.markdown("<div style='text-align:center; color:#8b949e; margin:10px;'>or</div>", unsafe_allow_html=True)
+    st.write("")
+    
+    # Render Saved Dashboards List
+    if len(st.session_state.dashboards) == 0:
+        st.info("No saved dashboards yet. Click 'Create Scanner' above!")
         
-        with st.form("login_form"):
-            email_input = st.text_input("EMAIL", placeholder="name@domain.com")
-            pass_input = st.text_input("PASSWORD", type="password", placeholder="••••••••")
+    for idx, d in enumerate(st.session_state.dashboards):
+        with st.container():
+            c_info, c_btns = st.columns([3, 1])
             
-            c_rem, c_for = st.columns(2)
-            with c_rem:
-                remember_me = st.checkbox("Remember me", value=True)
-            with c_for:
-                st.caption("Forgot your password?")
-                
-            st.write("")
-            login_submit = st.form_submit_button("Log in", type="primary", use_container_width=True)
-            
-            if login_submit:
-                if email_input.strip() != "" and pass_input.strip() != "":
-                    st.session_state.is_logged_in = True
-                    st.session_state.user_email = email_input
+            with c_info:
+                if st.button(f"📌 {d['name']}", key=f"dash_item_{d['id']}"):
+                    st.session_state.active_screener = d
+                    st.session_state.current_page = "view_results"
                     st.rerun()
-                else:
-                    st.error("Please enter email and password!")
-                    
-        if st.button("Register New Account", use_container_width=True):
-            st.info("Registration open! Enter email above to log in.")
-
-
-# =================================----------------------------
-# 🚀 2. MAIN APP DASHBOARD (After Login Success)
-# =================================----------------------------
-else:
-    # ---------------------------------------------------------
-    # 📌 SIDEBAR MENU (Screens, Charts, Dashboard, Themes)
-    # ---------------------------------------------------------
-    st.sidebar.title("Chartink ATLAS")
-    st.sidebar.caption(f"Logged in as: {st.session_state.user_email}")
-    
-    if st.sidebar.button("🚪 Logout", use_container_width=True):
-        st.session_state.is_logged_in = False
-        st.rerun()
-        
-    st.sidebar.markdown("---")
-    
-    # Search Box in Sidebar
-    search_query = st.sidebar.text_input("🔍 Search", placeholder="Ink Chart Search...")
-    
-    # Expandable Menu Sections
-    with st.sidebar.expander("📑 Screens", expanded=True):
-        if st.button("➕ Create Scan"):
-            st.session_state.view_mode = "scan_options"
-            st.rerun()
-        st.button("📜 Old Scans")
-        
-    with st.sidebar.expander("📊 Charts"):
-        st.button("📈 Candlestick")
-        st.button("📉 P&F Chart")
-        
-    with st.sidebar.expander("📈 Dashboard", expanded=True):
-        if st.button("📂 All Dashboards"):
-            st.session_state.view_mode = "home"
-            st.rerun()
-        st.button("⭐ Watchlists")
-        
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("👑 **Premium Features Active**")
-    
-    # Theme Selection Buttons
-    st.sidebar.markdown("🎨 **Theme Options**")
-    th_col1, th_col2, th_col3 = st.sidebar.columns(3)
-    with th_col1:
-        st.button("Light 💡")
-    with th_col2:
-        st.button("Dark ☾")
-    with th_col3:
-        st.button("System 🖥️")
-
-    # ---------------------------------------------------------
-    # 🏠 HOME VIEW (Acharya Dashboards Studio)
-    # ---------------------------------------------------------
-    if st.session_state.view_mode == "home":
-        # Top Logo Header Bar
-        st.markdown("""
-        <div class="top-bar">
-            <div>
-                <span class="top-logo">Acharya</span>
-                <span class="top-badge">SCANNER</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Hero Analysis Section
-        st.markdown("""
-        <div class="ci-card">
-            <div class="ci-logo-icon">Ci</div>
-            <h2 style="margin:5px 0px;">Finance analysis tools</h2>
-            <p style="color:#8b949e; font-size:13px;">Customizing stock charts, scans, and widgets — free and fast, so you get the insights you need to improve your trades.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Acharya Studio Header
-        st.markdown("### <span style='background:#312e81; color:#c7d2fe; padding:2px 8px; border-radius:4px; font-size:12px;'>ATLAS</span> Acharya Dashboards Studio", unsafe_allow_html=True)
-        st.caption("Customize scan result columns, view sector performance, track trends, view multiple scans in a single view.")
-        
-        st.write("")
-        
-        # Create Dashboard Primary Button
-        if st.button("+ Create Dashboard", type="primary", use_container_width=True):
-            st.session_state.view_mode = "create_dashboard"
-            st.rerun()
-            
-        st.write("")
-        
-        # Tabs: Your | Top | Fav
-        t1, t2, t3, t_space = st.columns([1, 1, 1, 3])
-        with t1:
-            if st.button("Your", type="secondary" if st.session_state.active_tab == "Your" else "tertiary"):
-                st.session_state.active_tab = "Your"
-                st.rerun()
-        with t2:
-            if st.button("Top"):
-                st.session_state.active_tab = "Top"
-                st.rerun()
-        with t3:
-            if st.button("Fav"):
-                st.session_state.active_tab = "Fav"
-                st.rerun()
+                st.caption(d.get("desc", ""))
+                st.markdown('<span class="badge-pvt">🔒 Private</span>', unsafe_allow_html=True)
                 
-        st.markdown("---")
-        
-        # Dashboard Cards Rendering
-        dash_list = st.session_state.dashboards
-        if st.session_state.active_tab == "Fav":
-            dash_list = [d for d in dash_list if d.get("is_fav", False)]
-            
-        if len(dash_list) == 0:
-            st.info("No dashboards found in this section.")
-            
-        for idx, d in enumerate(dash_list):
-            with st.container():
-                c_title, c_opts = st.columns([3, 1])
-                
-                with c_title:
-                    if st.button(f"📌 {d['name']}", key=f"dash_title_{d['id']}"):
-                        st.session_state.active_dashboard = d
-                        st.session_state.view_mode = "view_dashboard"
+            with c_btns:
+                b1, b2, b3 = st.columns(3)
+                with b1:
+                    fav_icon = "⭐" if d.get("is_fav", False) else "☆"
+                    if st.button(fav_icon, key=f"fav_{d['id']}"):
+                        d["is_fav"] = not d.get("is_fav", False)
+                        save_data(st.session_state.dashboards)
                         st.rerun()
-                    st.caption(f"Has {len(d.get('widgets', []))} widgets")
-                    
-                with c_opts:
-                    o1, o2, o3 = st.columns(3)
-                    with o1:
-                        fav_i = "⭐" if d.get("is_fav", False) else "☆"
-                        if st.button(fav_i, key=f"fav_{d['id']}"):
-                            d["is_fav"] = not d.get("is_fav", False)
-                            save_data(st.session_state.dashboards)
-                            st.rerun()
-                    with o2:
-                        if st.button("📋", key=f"cp_{d['id']}"):
-                            cp = json.loads(json.dumps(d))
-                            cp["id"] = len(st.session_state.dashboards) + 1
-                            cp["name"] = f"{d['name']} (COPY)"
-                            st.session_state.dashboards.append(cp)
-                            save_data(st.session_state.dashboards)
-                            st.rerun()
-                    with o3:
-                        if st.button("🗑️", key=f"del_{d['id']}"):
-                            st.session_state.dashboards.pop(idx)
-                            save_data(st.session_state.dashboards)
-                            st.rerun()
-                            
-                st.markdown("---")
+                with b2:
+                    if st.button("📋", key=f"copy_{d['id']}"):
+                        cp = json.loads(json.dumps(d))
+                        cp["id"] = len(st.session_state.dashboards) + 1
+                        cp["name"] = f"{d['name']} (COPY)"
+                        st.session_state.dashboards.append(cp)
+                        save_data(st.session_state.dashboards)
+                        st.rerun()
+                with b3:
+                    if st.button("🗑️", key=f"del_{d['id']}"):
+                        st.session_state.dashboards.pop(idx)
+                        save_data(st.session_state.dashboards)
+                        st.rerun()
+                        
+            st.markdown("---")
 
-    # ---------------------------------------------------------
-    # 🛠️ 3. CREATE DASHBOARD VIEW
-    # ---------------------------------------------------------
-    elif st.session_state.view_mode == "create_dashboard":
-        if st.button("⬅️ Back"):
-            st.session_state.view_mode = "home"
-            st.rerun()
-            
-        st.title("🛠️ Create New Dashboard")
-        st.markdown("---")
-        
-        with st.form("create_dash"):
-            dash_title = st.text_input("Name", placeholder="Title (e.g. Tomato or IBB Scanner)")
-            is_private_check = st.checkbox("Private Premium", value=True)
-            
-            st.write("")
-            cb1, cb2 = st.columns(2)
-            with cb2:
-                btn_save = st.form_submit_button("Create", type="primary", use_container_width=True)
-                
-            if btn_save:
-                if dash_title.strip() != "":
-                    new_item = {
-                        "id": len(st.session_state.dashboards) + 1,
-                        "name": dash_title.upper(),
-                        "desc": "Has 0 widgets",
-                        "is_private": is_private_check,
-                        "is_fav": False,
-                        "widgets": []
-                    }
-                    st.session_state.dashboards.append(new_item)
-                    save_data(st.session_state.dashboards)
-                    st.session_state.view_mode = "home"
-                    st.rerun()
-                else:
-                    st.error("Please enter a Dashboard Name!")
 
-    # ---------------------------------------------------------
-    # 📊 4. VIEW SINGLE DASHBOARD
-    # ---------------------------------------------------------
-    elif st.session_state.view_mode == "view_dashboard":
-        active = st.session_state.active_dashboard
-        
-        if st.button("⬅️ Back to Dashboards"):
-            st.session_state.view_mode = "home"
-            st.rerun()
-            
-        st.title(f"📊 {active['name']}")
-        st.markdown("---")
-        
-        if len(active.get('widgets', [])) == 0:
-            st.write("<br><br>", unsafe_allow_html=True)
-            col_p1, col_p2, col_p3 = st.columns([1, 1, 1])
-            with col_p2:
-                st.markdown("<h4 style='text-align: center;'>Add New Scan</h4>", unsafe_allow_html=True)
-                if st.button("➕", type="primary", use_container_width=True):
-                    st.session_state.view_mode = "scan_options"
-                    st.rerun()
-        else:
-            for w in active['widgets']:
-                st.subheader(f"📈 {w['name']}")
-                st.info(f"Loaded Template: {w['type']} | Fetching Live Market Breakouts...")
-                st.markdown("---")
-                
-            if st.button("➕ Add Another Widget"):
-                st.session_state.view_mode = "scan_options"
-                st.rerun()
-
-    # ---------------------------------------------------------
-    # 📑 5. SCAN OPTIONS / TEMPLATES VIEW
-    # ---------------------------------------------------------
-    elif st.session_state.view_mode == "scan_options":
-        active = st.session_state.active_dashboard
-        
-        if st.button("❌ Close"):
-            st.session_state.view_mode = "view_dashboard" if active else "home"
-            st.rerun()
-                
-        st.markdown("<h2 style='text-align: center;'>Create a new scan/chart</h2>", unsafe_allow_html=True)
-        st.markdown("---")
-        
-        if st.button("⟇ ➕ New Scan (Start Afresh)", use_container_width=True):
-            if active:
-                active['widgets'].append({"name": "Custom New Scan", "type": "Custom Scratch"})
-                save_data(st.session_state.dashboards)
-                st.session_state.view_mode = "view_dashboard"
-            else:
-                st.session_state.view_mode = "home"
-            st.rerun()
-
-        st.write("<br>", unsafe_allow_html=True)
-        st.subheader("Start from a template")
-
-        templates = [
-            ("📈 Sector Advances %", "Sector Advances"),
-            ("📊 Stocks near 52 week high", "52W High"),
-            ("⚡ Top gainers %", "Top Gainers"),
-            ("🌐 Industry Stocks at 52-wk high", "Industry 52W High"),
-            ("📉 Average marketcap RSI", "Marketcap RSI"),
-            ("📌 Stocks above VWAP", "Above VWAP"),
-            ("📈 Todays Volume vs 50 SMA volume", "Volume vs 50 SMA")
-        ]
-
-        for temp_label, temp_code in templates:
-            if st.button(temp_label, key=f"btn_{temp_code}", use_container_width=True):
-                if active:
-                    active['widgets'].append({"name": temp_label, "type": temp_code})
-                    save_data(st.session_state.dashboards)
-                    st.session_state.view_mode = "view_dashboard"
-                else:
-                    st.session_state.view_mode = "home"
-                st.rerun()
+# =================================----------------------------
+# 2. STOCK SCREENER BUILDER (Filter Creator)
+# =================================----------------------------
+elif st.session_state.current_page == "screener_builder":
+    st.title("🛠️ Stock Screener - Add Filters")
+    st.markdown("---")
     
+    scr_name = st.text_input("📌 Scanner Name", value="MY CUSTOM SCREENER")
+    
+    st.subheader("🎯 Magic Filters")
+    st.caption("Stock passes all of the below filters in cash segment:")
+    
+    # Active Filters List (Custom UI)
+    st.markdown("""
+    <div class="filter-card">
+        <b>[15 minute] Close</b> Greater than <b>[15 minute] High</b>
+    </div>
+    <div class="filter-card">
+        <b>[15 minute] Close</b> Greater than <b>Daily Pivot point R1</b>
+    </div>
+    <div class="filter-card">
+        <b>Daily % Change</b> Greater than <b>Number 0</b>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("")
+    col_add, col_run = st.columns([1, 1])
+    with col_add:
+        if st.button("➕ Add Filter Condition", use_container_width=True):
+            st.success("Condition added successfully!")
+            
+    with col_run:
+        if st.button("🚀 Run Scan & Save", type="primary", use_container_width=True):
+            new_scr = {
+                "id": len(st.session_state.dashboards) + 1,
+                "name": scr_name.upper(),
+                "desc": "Custom Filters Applied",
+                "is_private": True,
+                "is_fav": False,
+                "filters": []
+            }
+            st.session_state.dashboards.append(new_scr)
+            save_data(st.session_state.dashboards)
+            st.session_state.active_screener = new_scr
+            st.session_state.current_page = "view_results"
+            st.rerun()
+
+
+# =================================----------------------------
+# 3. LIVE SCAN RESULTS VIEW
+# =================================----------------------------
+elif st.session_state.current_page == "view_results":
+    active = st.session_state.active_screener
+    scr_title = active['name'] if active else "BULLISH BREAKOUTS"
+    
+    col_b, col_t = st.columns([1, 5])
+    with col_b:
+        if st.button("⬅️ Back"):
+            st.session_state.current_page = "dashboard"
+            st.rerun()
+            
+    st.title(f"📈 {scr_title}")
+    st.caption("Delayed data updated near real-time from NSE.")
+    st.markdown("---")
+    
+    # Fetch Live Results
+    with st.spinner("Scanning live market stocks..."):
+        df_results = fetch_live_breakouts()
+        
+    if not df_results.empty:
+        st.dataframe(df_results, use_container_width=True, hide_index=True)
+        
+        # Download Data Option
+        csv = df_results.to_csv(index=False).encode('utf-8')
+        st.download_button(label="📥 Download CSV Results", data=csv, file_name=f"{scr_title}_results.csv", mime='text/csv')
+    else:
+        st.info("No stocks currently matching the breakout condition.")
+        

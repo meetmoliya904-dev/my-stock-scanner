@@ -3,242 +3,296 @@ import json
 import os
 
 # Page Configuration
-st.set_page_config(layout="wide", page_title="Stoxify - Chartink Atlas")
+st.set_page_config(layout="wide", page_title="Acharya - Atlas Financial Intelligence", page_icon="📈")
 
-# File path to save dashboards permanently across page refreshes
-DATA_FILE = "dashboards_data.json"
+# Local Storage File for Persistence
+DATA_FILE = "acharya_dashboards.json"
 
-# Load saved dashboards from JSON file on app startup
-def load_dashboards():
+def load_data():
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r") as f:
                 return json.load(f)
         except:
-            return []
-    return []
+            pass
+    return [
+        {"id": 1, "name": "IBB SCANNER", "desc": "Has 4 widgets", "is_private": True, "is_fav": True, "widgets": 4}
+    ]
 
-# Save dashboards to JSON file
-def save_dashboards(dashboards):
+def save_data(data):
     with open(DATA_FILE, "w") as f:
-        json.dump(dashboards, f, indent=4)
+        json.dump(data, f, indent=4)
 
-# Initialize Session State
 if "dashboards" not in st.session_state:
-    st.session_state.dashboards = load_dashboards()
+    st.session_state.dashboards = load_data()
 
 if "view_mode" not in st.session_state:
-    st.session_state.view_mode = "create" if len(st.session_state.dashboards) == 0 else "saved_list"
+    st.session_state.view_mode = "home" # 'home', 'create', 'dashboard_view'
 
-if "active_dashboard" not in st.session_state:
-    st.session_state.active_dashboard = None
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = "Your"
 
-# Custom CSS for Mobile Responsive Buttons & Persistence
+# Custom Styling to match Image 1000223920.jpg Exactly
 st.markdown("""
 <style>
-    [data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        gap: 4px !important;
+    /* Dark Theme Setup */
+    .stApp {
+        background-color: #0b0e14;
+        color: #ffffff;
     }
-    div[data-testid="column"] {
-        width: auto !important;
-        flex: 1 1 auto !important;
-        min-width: 0px !important;
+    
+    /* Top Logo & Branding Header */
+    .brand-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 0px;
+        border-bottom: 1px solid #1e2640;
+        margin-bottom: 20px;
     }
-    .stButton>button {
-        width: 100% !important;
-        border-radius: 6px !important;
-        padding: 4px 4px !important;
+    .brand-title {
+        font-size: 24px;
+        font-weight: bold;
+        color: #ffffff;
+    }
+    .brand-badge {
+        background: linear-gradient(90deg, #1d976c, #2c3e50);
+        color: #00ffff;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        margin-left: 8px;
+    }
+    
+    /* Center CI Hero Section */
+    .hero-box {
+        text-align: center;
+        padding: 30px 10px;
+    }
+    .ci-logo {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, #1e1b4b, #312e81);
+        border: 2px solid #818cf8;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: bold;
+        color: #818cf8;
+        box-shadow: 0 0 20px rgba(129, 140, 248, 0.4);
+        margin-bottom: 15px;
+    }
+    .hero-title {
+        font-size: 28px;
+        font-weight: 800;
+        color: #ffffff;
+        margin-bottom: 10px;
+    }
+    .hero-sub {
+        font-size: 14px;
+        color: #94a3b8;
+        max-width: 500px;
+        margin: 0 auto 20px auto;
+    }
+    
+    /* Glowing Action Button */
+    .scan-btn {
+        background: linear-gradient(90deg, #8b5cf6, #06b6d4);
+        color: white;
+        padding: 12px 28px;
+        border-radius: 25px;
+        font-weight: bold;
+        font-size: 14px;
+        border: none;
+        box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+        display: inline-block;
+    }
+    
+    /* Studio Card Outer Box */
+    .studio-box {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 16px;
+        padding: 20px;
+        margin-top: 25px;
+    }
+    
+    /* Create Dashboard Button */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(90deg, #8b5cf6, #06b6d4) !important;
+        color: white !important;
+        border-radius: 10px !important;
         font-weight: bold !important;
+        border: none !important;
+        height: 48px !important;
     }
-    .badge-private {
-        background-color: #3d1214;
-        color: #ff6b6b;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 11px;
-        border: 1px solid #ff6b6b;
-        display: inline-block;
-    }
-    .badge-public {
-        background-color: #123d24;
-        color: #51cf66;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 11px;
-        border: 1px solid #51cf66;
-        display: inline-block;
+    
+    /* Card Styles */
+    .card-item {
+        background: #0f172a;
+        border: 1px solid #3b82f6;
+        border-radius: 12px;
+        padding: 15px;
+        margin-top: 15px;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
     }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 1. CREATE NEW DASHBOARD PAGE
+# 🔱 TOP BRANDING HEADER
 # -------------------------------------------------------------
-if st.session_state.view_mode == "create":
-    st.title("🛠️ Create New Dashboard")
-    st.write("Enter details to create your scanner dashboard.")
-    st.markdown("---")
-    
-    with st.form("create_dash_form"):
-        dash_name = st.text_input("📌 Scanner Name", placeholder="Enter scanner name (e.g. MOJ)")
-        dash_desc = st.text_area("📝 Description (Optional)", placeholder="Write description...")
-        is_pvt = st.checkbox("🔒 Make Private", value=True)
-        
-        st.write("")
-        submit_btn = st.form_submit_button("🚀 Save / Create Dashboard", use_container_width=True)
-
-        if submit_btn:
-            if dash_name.strip() != "":
-                new_dash = {
-                    "id": len(st.session_state.dashboards) + 1,
-                    "name": dash_name.upper(),
-                    "desc": dash_desc if dash_desc else "Custom Atlas Dashboard",
-                    "is_private": is_pvt,
-                    "is_fav": False,
-                    "widgets": []
-                }
-                st.session_state.dashboards.append(new_dash)
-                save_dashboards(st.session_state.dashboards)  # Permanently Save Data
-                st.session_state.active_dashboard = new_dash
-                st.session_state.view_mode = "saved_list"
-                st.rerun()
-            else:
-                st.error("Please enter a Scanner Name!")
+st.markdown("""
+<div class="brand-header">
+    <div>
+        <span class="brand-title">Acharya</span>
+        <span class="brand-badge">SCANNER</span>
+        <br><small style="color:#64748b; font-size:10px;">ATLAS FINANCIAL INTELLIGENCE</small>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 2. SAVED DASHBOARDS LIST PAGE (Fixed Refresh & Delete Button)
+# 1. HOME VIEW (MATCHING IMAGE 1000223920.JPG)
 # -------------------------------------------------------------
-elif st.session_state.view_mode == "saved_list":
-    st.title("📋 Saved Dashboards")
+if st.session_state.view_mode == "home":
     
-    if st.button("➕ Create New Dashboard", type="primary", use_container_width=True):
+    # Hero Center Box
+    st.markdown("""
+    <div class="hero-box">
+        <div class="ci-logo">Ci</div>
+        <div class="hero-title">Finance analysis tools</div>
+        <div class="hero-sub">Customizing stock charts, scans, and widgets — free and fast, so you get the insights you need to improve your trades.</div>
+        <div class="scan-btn">SCAN. CHART. TRADE.</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("<br>", unsafe_allow_html=True)
+    
+    # Acharya Dashboards Studio Section
+    st.markdown("### <span style='background:#312e81; color:#c7d2fe; padding:3px 8px; border-radius:4px; font-size:12px;'>ATLAS</span> Acharya Dashboards Studio", unsafe_allow_html=True)
+    st.caption("Customize scan result columns, view sector performance, track trends, view multiple scans in a single view.")
+    
+    st.write("")
+    
+    # Create Dashboard Button
+    if st.button("+ Create Dashboard", type="primary", use_container_width=True):
         st.session_state.view_mode = "create"
         st.rerun()
+        
+    st.write("")
+    
+    # Tabs: Your | Top | Fav
+    tab_col1, tab_col2, tab_col3, tab_space = st.columns([1, 1, 1, 3])
+    with tab_col1:
+        if st.button("Your", type="secondary" if st.session_state.active_tab == "Your" else "tertiary"):
+            st.session_state.active_tab = "Your"
+            st.rerun()
+    with tab_col2:
+        if st.button("Top"):
+            st.session_state.active_tab = "Top"
+            st.rerun()
+    with tab_col3:
+        if st.button("Fav"):
+            st.session_state.active_tab = "Fav"
+            st.rerun()
             
     st.markdown("---")
     
-    if len(st.session_state.dashboards) == 0:
-        st.info("No dashboards created yet! Click 'Create New Dashboard' above to start.")
-    
-    for idx, d in enumerate(st.session_state.dashboards):
+    # Filter list based on tab
+    dash_list = st.session_state.dashboards
+    if st.session_state.active_tab == "Fav":
+        dash_list = [d for d in dash_list if d.get("is_fav", False)]
+        
+    if len(dash_list) == 0:
+        st.info("No dashboards found in this section.")
+        
+    for idx, d in enumerate(dash_list):
         with st.container():
-            # Header Row
-            col_name, col_badge = st.columns([3, 1])
-            with col_name:
-                if st.button(f"📌 {d['name']}", key=f"open_dash_{d['id']}"):
+            col_info, col_actions = st.columns([3, 1])
+            
+            with col_info:
+                if st.button(f"📌 {d['name']}", key=f"open_{d['id']}"):
                     st.session_state.active_dashboard = d
                     st.session_state.view_mode = "dashboard_view"
                     st.rerun()
-            with col_badge:
-                if d.get('is_private', True):
-                    st.markdown('<span class="badge-private">🔒 Private</span>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<span class="badge-public">🌐 Public</span>', unsafe_allow_html=True)
-            
-            st.caption(d.get('desc', ''))
-            
-            # Action Buttons Row: Star, Copy, Delete All Visible Side-by-Side
-            col_fav, col_copy, col_del, col_space = st.columns([1, 1, 1, 3])
-            
-            with col_fav:
-                fav_icon = "⭐" if d.get('is_fav', False) else "☆"
-                if st.button(fav_icon, key=f"fav_{d['id']}"):
-                    d['is_fav'] = not d.get('is_fav', False)
-                    save_dashboards(st.session_state.dashboards)
-                    st.rerun()
-                    
-            with col_copy:
-                if st.button("📋", key=f"copy_{d['id']}"):
-                    copied = json.loads(json.dumps(d))
-                    copied['id'] = len(st.session_state.dashboards) + 1
-                    copied['name'] = f"{d['name']} (COPY)"
-                    st.session_state.dashboards.append(copied)
-                    save_dashboards(st.session_state.dashboards)
-                    st.rerun()
-                    
-            with col_del:
-                if st.button("🗑️", key=f"del_{d['id']}"):
-                    st.session_state.dashboards.pop(idx)
-                    save_dashboards(st.session_state.dashboards)  # Permanently Save Deletion
-                    if len(st.session_state.dashboards) == 0:
-                        st.session_state.view_mode = "create"
-                    st.rerun()
-            
+                st.caption(f"Has {d.get('widgets', 0)} widgets")
+                
+            with col_actions:
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    fav_icon = "⭐" if d.get("is_fav", False) else "☆"
+                    if st.button(fav_icon, key=f"fav_{d['id']}"):
+                        d["is_fav"] = not d.get("is_fav", False)
+                        save_data(st.session_state.dashboards)
+                        st.rerun()
+                with c2:
+                    if st.button("📋", key=f"copy_{d['id']}"):
+                        copied = json.loads(json.dumps(d))
+                        copied["id"] = len(st.session_state.dashboards) + 1
+                        copied["name"] = f"{d['name']} (COPY)"
+                        st.session_state.dashboards.append(copied)
+                        save_data(st.session_state.dashboards)
+                        st.rerun()
+                with c3:
+                    if st.button("🗑️", key=f"del_{d['id']}"):
+                        st.session_state.dashboards.pop(idx)
+                        save_data(st.session_state.dashboards)
+                        st.rerun()
+                        
             st.markdown("---")
 
 # -------------------------------------------------------------
-# 3. DASHBOARD VIEW PAGE
+# 2. CREATE NEW DASHBOARD FORM
+# -------------------------------------------------------------
+elif st.session_state.view_mode == "create":
+    if st.button("⬅️ Back"):
+        st.session_state.view_mode = "home"
+        st.rerun()
+        
+    st.title("🛠️ Create Dashboard")
+    st.markdown("---")
+    
+    with st.form("create_form"):
+        d_name = st.text_input("Title", placeholder="e.g. IBB SCANNER or MOJ")
+        is_pvt = st.checkbox("Private Premium", value=True)
+        
+        st.write("")
+        col_cancel, col_create = st.columns(2)
+        with col_create:
+            sub = st.form_submit_button("Create", type="primary", use_container_width=True)
+            
+        if sub:
+            if d_name.strip() != "":
+                new_d = {
+                    "id": len(st.session_state.dashboards) + 1,
+                    "name": d_name.upper(),
+                    "desc": "Has 0 widgets",
+                    "is_private": is_pvt,
+                    "is_fav": False,
+                    "widgets": 0
+                }
+                st.session_state.dashboards.append(new_d)
+                save_data(st.session_state.dashboards)
+                st.session_state.view_mode = "home"
+                st.rerun()
+            else:
+                st.error("Please enter a title!")
+
+# -------------------------------------------------------------
+# 3. DASHBOARD DETAILS VIEW
 # -------------------------------------------------------------
 elif st.session_state.view_mode == "dashboard_view":
     active = st.session_state.active_dashboard
     
-    if st.button("⬅️ Back to Saved List"):
-        st.session_state.view_mode = "saved_list"
+    if st.button("⬅️ Back"):
+        st.session_state.view_mode = "home"
         st.rerun()
-            
+        
     st.title(f"📊 {active['name']}")
     st.markdown("---")
+    st.info("Scanner Active! Live Market Breakout Data is fetching in real-time...")
     
-    if len(active.get('widgets', [])) == 0:
-        st.write("<br><br>", unsafe_allow_html=True)
-        col_p1, col_p2, col_p3 = st.columns([1, 1, 1])
-        with col_p2:
-            st.markdown("<h4 style='text-align: center;'>Add New Scan</h4>", unsafe_allow_html=True)
-            if st.button("➕", type="primary", use_container_width=True):
-                st.session_state.view_mode = "scan_options"
-                st.rerun()
-    else:
-        for w in active['widgets']:
-            st.subheader(f"📈 {w['name']}")
-            st.info(f"Loaded Template: {w['type']} | Live Data Fetching...")
-            st.markdown("---")
-            
-        if st.button("➕ Add Another Widget"):
-            st.session_state.view_mode = "scan_options"
-            st.rerun()
-
-# -------------------------------------------------------------
-# 4. CHARTINK ATLAS SCAN OPTIONS PAGE
-# -------------------------------------------------------------
-elif st.session_state.view_mode == "scan_options":
-    active = st.session_state.active_dashboard
-    
-    if st.button("❌ Close"):
-        st.session_state.view_mode = "dashboard_view"
-        st.rerun()
-            
-    st.markdown("<h2 style='text-align: center;'>Create a new scan/chart</h2>", unsafe_allow_html=True)
-    st.markdown("---")
-    
-    if st.button("⟇ ➕ New Scan (Start Afresh)", use_container_width=True):
-        active['widgets'].append({"name": "Custom New Scan", "type": "Custom Scratch"})
-        save_dashboards(st.session_state.dashboards)
-        st.session_state.view_mode = "dashboard_view"
-        st.rerun()
-
-    st.write("<br>", unsafe_allow_html=True)
-    st.subheader("Start from a template")
-
-    templates = [
-        ("📈 Sector Advances %", "Sector Advances"),
-        ("📊 Stocks near 52 week high", "52W High"),
-        ("⚡ Top gainers %", "Top Gainers"),
-        ("🌐 Industry Stocks at 52-wk high", "Industry 52W High"),
-        ("📉 Average marketcap RSI", "Marketcap RSI"),
-        ("📈 Marketcap Advances %", "Marketcap Advances"),
-        ("📊 RSI distribution", "RSI Distribution"),
-        ("📌 Stocks above VWAP", "Above VWAP"),
-        ("📈 Todays Volume vs 50 SMA volume", "Volume vs 50 SMA"),
-        ("💰 Positive vs Negative volumes (in lacs)", "Pos vs Neg Volume"),
-        ("📑 Key financial Ratios", "Financial Ratios"),
-        ("📊 YoY Sales & profits", "YoY Sales & Profit")
-    ]
-
-    for temp_label, temp_code in templates:
-        if st.button(temp_label, key=f"btn_{temp_code}", use_container_width=True):
-            active['widgets'].append({"name": temp_label, "type": temp_code})
-            save_dashboards(st.session_state.dashboards)
-            st.session_state.view_mode = "dashboard_view"
-            st.rerun()
-                

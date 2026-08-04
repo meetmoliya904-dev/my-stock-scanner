@@ -1,11 +1,31 @@
 import streamlit as st
+import json
+import os
 
 # Page Configuration
 st.set_page_config(layout="wide", page_title="Stoxify - Chartink Atlas")
 
-# Session State Initializations (હવે TOMATO વાળી સેમ્પલ એન્ટ્રી સંપૂર્ણ હટાવી દીધી છે)
+# File path to save dashboards permanently across page refreshes
+DATA_FILE = "dashboards_data.json"
+
+# Load saved dashboards from JSON file on app startup
+def load_dashboards():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+# Save dashboards to JSON file
+def save_dashboards(dashboards):
+    with open(DATA_FILE, "w") as f:
+        json.dump(dashboards, f, indent=4)
+
+# Initialize Session State
 if "dashboards" not in st.session_state:
-    st.session_state.dashboards = []
+    st.session_state.dashboards = load_dashboards()
 
 if "view_mode" not in st.session_state:
     st.session_state.view_mode = "create" if len(st.session_state.dashboards) == 0 else "saved_list"
@@ -13,13 +33,12 @@ if "view_mode" not in st.session_state:
 if "active_dashboard" not in st.session_state:
     st.session_state.active_dashboard = None
 
-# Custom CSS for Mobile Responsive Buttons (બટન્સ એક જ લાઈનમાં રહેવા માટે)
+# Custom CSS for Mobile Responsive Buttons & Persistence
 st.markdown("""
 <style>
-    /* Mobile Column Layout Fix */
     [data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
-        gap: 6px !important;
+        gap: 4px !important;
     }
     div[data-testid="column"] {
         width: auto !important;
@@ -29,13 +48,13 @@ st.markdown("""
     .stButton>button {
         width: 100% !important;
         border-radius: 6px !important;
-        padding: 4px 6px !important;
+        padding: 4px 4px !important;
         font-weight: bold !important;
     }
     .badge-private {
         background-color: #3d1214;
         color: #ff6b6b;
-        padding: 3px 8px;
+        padding: 2px 6px;
         border-radius: 4px;
         font-size: 11px;
         border: 1px solid #ff6b6b;
@@ -44,7 +63,7 @@ st.markdown("""
     .badge-public {
         background-color: #123d24;
         color: #51cf66;
-        padding: 3px 8px;
+        padding: 2px 6px;
         border-radius: 4px;
         font-size: 11px;
         border: 1px solid #51cf66;
@@ -54,7 +73,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 1. CREATE NEW DASHBOARD PAGE (તમારું નવું ડેશબોર્ડ બનાવવાનું પેજ)
+# 1. CREATE NEW DASHBOARD PAGE
 # -------------------------------------------------------------
 if st.session_state.view_mode == "create":
     st.title("🛠️ Create New Dashboard")
@@ -62,7 +81,7 @@ if st.session_state.view_mode == "create":
     st.markdown("---")
     
     with st.form("create_dash_form"):
-        dash_name = st.text_input("📌 Scanner Name", placeholder="Enter scanner name (e.g. MEET200)")
+        dash_name = st.text_input("📌 Scanner Name", placeholder="Enter scanner name (e.g. MOJ)")
         dash_desc = st.text_area("📝 Description (Optional)", placeholder="Write description...")
         is_pvt = st.checkbox("🔒 Make Private", value=True)
         
@@ -80,6 +99,7 @@ if st.session_state.view_mode == "create":
                     "widgets": []
                 }
                 st.session_state.dashboards.append(new_dash)
+                save_dashboards(st.session_state.dashboards)  # Permanently Save Data
                 st.session_state.active_dashboard = new_dash
                 st.session_state.view_mode = "saved_list"
                 st.rerun()
@@ -87,7 +107,7 @@ if st.session_state.view_mode == "create":
                 st.error("Please enter a Scanner Name!")
 
 # -------------------------------------------------------------
-# 2. SAVED DASHBOARDS LIST PAGE (તમારા સેવ કરેલા સ્કેનર્સની યાદી)
+# 2. SAVED DASHBOARDS LIST PAGE (Fixed Refresh & Delete Button)
 # -------------------------------------------------------------
 elif st.session_state.view_mode == "saved_list":
     st.title("📋 Saved Dashboards")
@@ -103,7 +123,7 @@ elif st.session_state.view_mode == "saved_list":
     
     for idx, d in enumerate(st.session_state.dashboards):
         with st.container():
-            # Header Row: Name & Private Badge
+            # Header Row
             col_name, col_badge = st.columns([3, 1])
             with col_name:
                 if st.button(f"📌 {d['name']}", key=f"open_dash_{d['id']}"):
@@ -111,30 +131,36 @@ elif st.session_state.view_mode == "saved_list":
                     st.session_state.view_mode = "dashboard_view"
                     st.rerun()
             with col_badge:
-                if d['is_private']:
+                if d.get('is_private', True):
                     st.markdown('<span class="badge-private">🔒 Private</span>', unsafe_allow_html=True)
                 else:
                     st.markdown('<span class="badge-public">🌐 Public</span>', unsafe_allow_html=True)
             
-            st.caption(d['desc'])
+            st.caption(d.get('desc', ''))
             
-            # Action Buttons Row (Star, Copy, Delete એક જ લાઇનમાં આડા)
-            btn_col1, btn_col2, btn_col3, btn_space = st.columns([1, 1, 1, 3])
-            with btn_col1:
-                fav_icon = "⭐" if d['is_fav'] else "☆"
+            # Action Buttons Row: Star, Copy, Delete All Visible Side-by-Side
+            col_fav, col_copy, col_del, col_space = st.columns([1, 1, 1, 3])
+            
+            with col_fav:
+                fav_icon = "⭐" if d.get('is_fav', False) else "☆"
                 if st.button(fav_icon, key=f"fav_{d['id']}"):
-                    d['is_fav'] = not d['is_fav']
+                    d['is_fav'] = not d.get('is_fav', False)
+                    save_dashboards(st.session_state.dashboards)
                     st.rerun()
-            with btn_col2:
+                    
+            with col_copy:
                 if st.button("📋", key=f"copy_{d['id']}"):
-                    copied = d.copy()
+                    copied = json.loads(json.dumps(d))
                     copied['id'] = len(st.session_state.dashboards) + 1
                     copied['name'] = f"{d['name']} (COPY)"
                     st.session_state.dashboards.append(copied)
+                    save_dashboards(st.session_state.dashboards)
                     st.rerun()
-            with btn_col3:
+                    
+            with col_del:
                 if st.button("🗑️", key=f"del_{d['id']}"):
                     st.session_state.dashboards.pop(idx)
+                    save_dashboards(st.session_state.dashboards)  # Permanently Save Deletion
                     if len(st.session_state.dashboards) == 0:
                         st.session_state.view_mode = "create"
                     st.rerun()
@@ -142,7 +168,7 @@ elif st.session_state.view_mode == "saved_list":
             st.markdown("---")
 
 # -------------------------------------------------------------
-# 3. DASHBOARD VIEW PAGE (વચ્ચે + વાળી જગ્યા)
+# 3. DASHBOARD VIEW PAGE
 # -------------------------------------------------------------
 elif st.session_state.view_mode == "dashboard_view":
     active = st.session_state.active_dashboard
@@ -154,7 +180,7 @@ elif st.session_state.view_mode == "dashboard_view":
     st.title(f"📊 {active['name']}")
     st.markdown("---")
     
-    if len(active['widgets']) == 0:
+    if len(active.get('widgets', [])) == 0:
         st.write("<br><br>", unsafe_allow_html=True)
         col_p1, col_p2, col_p3 = st.columns([1, 1, 1])
         with col_p2:
@@ -173,7 +199,7 @@ elif st.session_state.view_mode == "dashboard_view":
             st.rerun()
 
 # -------------------------------------------------------------
-# 4. CHARTINK ATLAS SCAN OPTIONS PAGE (૧૧+ ઓપ્શન્સ)
+# 4. CHARTINK ATLAS SCAN OPTIONS PAGE
 # -------------------------------------------------------------
 elif st.session_state.view_mode == "scan_options":
     active = st.session_state.active_dashboard
@@ -187,6 +213,7 @@ elif st.session_state.view_mode == "scan_options":
     
     if st.button("⟇ ➕ New Scan (Start Afresh)", use_container_width=True):
         active['widgets'].append({"name": "Custom New Scan", "type": "Custom Scratch"})
+        save_dashboards(st.session_state.dashboards)
         st.session_state.view_mode = "dashboard_view"
         st.rerun()
 
@@ -211,6 +238,7 @@ elif st.session_state.view_mode == "scan_options":
     for temp_label, temp_code in templates:
         if st.button(temp_label, key=f"btn_{temp_code}", use_container_width=True):
             active['widgets'].append({"name": temp_label, "type": temp_code})
+            save_dashboards(st.session_state.dashboards)
             st.session_state.view_mode = "dashboard_view"
             st.rerun()
-                             
+                
